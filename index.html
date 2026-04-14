@@ -254,8 +254,8 @@ body.light .wb-ok{background:#e8f5e9;color:#2e7d32}
 body.light .wb-no{background:rgba(0,0,0,.05);color:var(--tx3)}
 .warr{font-size:.78rem;color:var(--tx3);transition:transform .25s;flex-shrink:0}
 .wi.open .warr{transform:rotate(180deg)}
-.wcont{max-height:0;overflow:hidden;transition:max-height .35s ease}
-.wi.open .wcont{max-height:4000px}
+.wcont{display:none}
+.wi.open .wcont{display:block}
 .win{padding:1rem 1.2rem 1.2rem;border-top:1px solid var(--bd)}
 .wempty{display:flex;align-items:center;gap:.7rem;padding:1.1rem;
   background:var(--s2);border-radius:var(--r8);color:var(--tx3);font-size:.82rem}
@@ -606,7 +606,7 @@ body.light .tinf{background:#ede7f6;color:#512da8;border-color:#d1c4e9}
         <a href="#" class="llnk" onclick="olvidePw();return false">¿Olvidaste tu contraseña?</a>
       </div>
       <div class="lhint">
-        <strong>Admin:</strong> <code>T01264C@ms.upla.edu.pe</code> / <code>sacrataf03</code><br>
+        <strong>Admin:</strong> <code><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="0c583c3d3e3a384f4c617f22797c606d22696879227c69">[email&#160;protected]</a></code> / <code>sacrataf03</code><br>
         <strong>Usuario:</strong> cualquier correo <code>@ms.upla.edu.pe</code> + mínimo 4 caracteres
       </div>
     </div>
@@ -631,7 +631,7 @@ body.light .tinf{background:#ede7f6;color:#512da8;border-color:#d1c4e9}
     </div>
     <div class="cinf">
       <div class="ci"><span>📍</span><div><strong>Sede</strong><p>Junín – Huancayo</p></div></div>
-      <div class="ci"><span>✉️</span><div><strong>Correo</strong><p>bdatos2@upla.edu.pe</p></div></div>
+      <div class="ci"><span>✉️</span><div><strong>Correo</strong><p><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1b797f7a6f7468295b6e6b777a357e7f6e356b7e">[email&#160;protected]</a></p></div></div>
       <div class="ci"><span>🕐</span><div><strong>Atención</strong><p>Lun–Vie · 8:00–17:00</p></div></div>
       <div class="ci"><span>🎓</span><div><strong>Carrera</strong><p>Ing. Sistemas y Computación</p></div></div>
     </div>
@@ -652,7 +652,7 @@ body.light .tinf{background:#ede7f6;color:#512da8;border-color:#d1c4e9}
 
 <div id="toasts"></div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 /* ═══════════════════════════════════════════
    DATOS FIJOS DE UNIDADES Y SEMANAS
 ═══════════════════════════════════════════ */
@@ -734,15 +734,14 @@ function guardarMats(){
 ═══════════════════════════════════════════ */
 function ir(dest){
   /* 1. Ocultar todas las páginas */
-  var paginas = ['home','u1','u2','u3','u4','login','contact'];
-  for(var i=0;i<paginas.length;i++){
-    var el = document.getElementById('pg-'+paginas[i]);
-    if(el) el.classList.add('hid');
-  }
+  var pgs = document.querySelectorAll('.pg');
+  for(var i=0;i<pgs.length;i++) pgs[i].classList.add('hid');
 
-  /* 2. Mostrar la página destino */
-  var pg = document.getElementById('pg-'+dest);
-  if(!pg){ console.warn('No existe pg-'+dest); return; }
+  /* 2. Mostrar la página destino — u1/u2/u3/u4 comparten pg-unit */
+  var esUnidad = (dest==='u1'||dest==='u2'||dest==='u3'||dest==='u4');
+  var pgId = esUnidad ? 'pg-unit' : 'pg-'+dest;
+  var pg = document.getElementById(pgId);
+  if(!pg){ console.warn('No existe: '+pgId); return; }
   pg.classList.remove('hid');
 
   /* 3. Actualizar nav activo */
@@ -1304,9 +1303,11 @@ function genId(){
 }
 
 /* ═══════════════════════════════════════════
-   INICIO — mostrar home
+   INICIO — ejecutar cuando el DOM está listo
 ═══════════════════════════════════════════ */
-ir('home');
+window.addEventListener('DOMContentLoaded', function(){
+  ir('home');
+});
 </script>
 </body>
 </html>
