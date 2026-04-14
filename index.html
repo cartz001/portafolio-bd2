@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Portafolio BD II · UPLA 2026</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -800,6 +801,7 @@ function renderUnidad(){
 
   /* Renderizar semanas */
   renderSemanas();
+  cargarTodasLasSemanas(A.unidad);
 }
 
 function actualizarBanner(){
@@ -1035,56 +1037,107 @@ function chkSave(){
   if(btn) btn.disabled = !(A.archivo && titulo.trim().length>0);
 }
 
-function guardarArchivo(){
+async function guardarArchivo(){
   var f      = A.archivo;
   var titulo = (document.getElementById('up-ttl')||{}).value||'';
   var desc   = (document.getElementById('up-dsc')||{}).value||'';
-  titulo = titulo.trim(); desc = desc.trim();
+  titulo=titulo.trim(); desc=desc.trim();
   if(!f||!titulo){ toast('Necesitas un título y un archivo.','terr'); return; }
 
-  var btn = document.getElementById('savebtn');
-  btn.disabled=true; btn.textContent='⏳ Guardando…';
+  var btn=document.getElementById('savebtn');
+  btn.disabled=true; btn.textContent='⏳ Subiendo…';
 
-  var reader = new FileReader();
-  reader.onload = function(){
-    var key  = A.unidad+'_w'+A.semana;
-    var item = {
-      id:      genId(),
-      titulo:  titulo,
-      desc:    desc,
-      fname:   f.name,
-      fsize:   fmtB(f.size),
-      bytes:   f.size,
-      fecha:   new Date().toLocaleString('es-PE',{
+  // 1. Subir archivo a Supabase Storage
+  var ext      = f.name.split('.').pop();
+  var ruta     = A.unidad+'/semana'+A.semana+'/'+Date.now()+'_'+f.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  var upload   = await db.storage.from('materiales').upload(ruta, f);
+
+  if(upload.error){
+    toast('Error al subir: '+upload.error.message,'terr');
+    btn.disabled=false; btn.textContent='✓ Guardar Material'; return;
+  }
+
+  // 2. Obtener URL pública del archivo
+  var urlResult = db.storage.from('materiales').getPublicUrl(ruta);
+  var urlPublica = urlResult.data.publicUrl;
+
+  // 3. Guardar registro en la tabla materiales
+  var insert = await db.from('materiales').insert({
+    unidad:         A.unidad,
+    semana:         A.semana,
+    titulo:         titulo,
+    descripcion:    desc || null,
+    nombre_archivo: f.name,
+    url_archivo:    urlPublica,
+    tamano_bytes:   f.size
+  });
+
+  if(insert.error){
+    toast('Error al registrar: '+insert.error.message,'terr');
+    btn.disabled=false; btn.textContent='✓ Guardar Material'; return;
+  }
+
+  // 4. Recargar la semana
+  cerrarUpload();
+  await cargarSemana(A.unidad, A.semana);
+  actualizarBanner();
+  toast('"'+titulo+'" subido a Semana '+A.semana+' ✓','tok');
+  btn.disabled=false; btn.textContent='✓ Guardar Material';
+}
+async function cargarSemana(unidad, numSem){
+  var key = unidad+'_w'+numSem;
+  var res = await db.from('materiales')
+    .select('*')
+    .eq('unidad', unidad)
+    .eq('semana', numSem)
+    .order('created_at', {ascending: false});
+
+  if(res.error){ console.error(res.error); return; }
+
+  A.mats[key] = (res.data||[]).map(function(row){
+    return {
+      id:      row.id,
+      titulo:  row.titulo,
+      desc:    row.descripcion||'',
+      fname:   row.nombre_archivo,
+      fsize:   fmtB(row.tamano_bytes),
+      bytes:   row.tamano_bytes||0,
+      fecha:   new Date(row.created_at).toLocaleString('es-PE',{
         day:'2-digit',month:'short',year:'numeric',
         hour:'2-digit',minute:'2-digit'
       }),
-      dataUrl: reader.result
+      dataUrl: row.url_archivo
     };
-    if(!A.mats[key]) A.mats[key]=[];
-    A.mats[key].unshift(item);
-    guardarMats();
+  });
 
-    cerrarUpload();
-    refrescarSemana(key);
-    actualizarBanner();
-    toast('"'+titulo+'" guardado en Semana '+A.semana+' ✓','tok');
-    btn.disabled=false; btn.textContent='✓ Guardar Material';
-  };
-  reader.onerror = function(){
-    toast('Error al leer el archivo.','terr');
-    btn.disabled=false; btn.textContent='✓ Guardar Material';
-  };
-  reader.readAsDataURL(f);
+  refrescarSemana(key);
+}
+
+async function cargarTodasLasSemanas(unidad){
+  for(var s=1;s<=4;s++){
+    await cargarSemana(unidad, s);
+  }
+  actualizarBanner();
+}
+async function eliminarMat(key, id){
+  var res = await db.from('materiales').delete().eq('id', id);
+  if(res.error){ toast('Error al eliminar.','terr'); return; }
+  if(A.mats[key]) A.mats[key] = A.mats[key].filter(function(m){ return m.id!==id; });
+  refrescarSemana(key);
+  actualizarBanner();
+  toast('Material eliminado.','tinf');
 }
 
 /* ═══════════════════════════════════════════
    LOGIN / LOGOUT
 ═══════════════════════════════════════════ */
+var SUPA_URL = 'https://fqkoiilshvvswxtmvbmv.supabase.co';   // ← pega tu Project URL aquí
+var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxa29paWxzaHZ2c3d4dG12Ym12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMjI0NjAsImV4cCI6MjA5MTY5ODQ2MH0.gjyWkmEHRhtX7QcWTRCbb6WTuMnc88wQH1dWgi04GEo';                   // ← pega tu anon key aquí
+var db = supabase.createClient(SUPA_URL, SUPA_KEY);
 var ADMIN_EMAIL = 'T01264C@ms.upla.edu.pe';
 var ADMIN_PASS  = 'sacrataf03';
 
-function hacerLogin(){
+async function hacerLogin(){
   var email = (document.getElementById('lem')||{}).value||'';
   var pass  = (document.getElementById('lpw')||{}).value||'';
   var errEl = document.getElementById('lerr');
@@ -1100,31 +1153,25 @@ function hacerLogin(){
   var btn = document.getElementById('lbtn2');
   btn.disabled=true; btn.textContent='Verificando…';
 
-  setTimeout(function(){
-    btn.disabled=false; btn.textContent='Ingresar';
+  var result = await db.auth.signInWithPassword({email:email, password:pass});
 
-    /* Admin */
-    if(email===ADMIN_EMAIL && pass===ADMIN_PASS){
-      establecerSesion(true, email.split('@')[0]);
-      limpiarLogin();
-      toast('¡Bienvenido Administrador! 🎓','tok');
-      ir('u1'); return;
-    }
-    /* Usuario UPLA */
-    if(email.toLowerCase().endsWith('@ms.upla.edu.pe') && pass.length>=4){
-      establecerSesion(false, email.split('@')[0]);
-      limpiarLogin();
-      toast('¡Bienvenido '+email.split('@')[0]+'! 👋','tok');
-      ir('u1'); return;
-    }
-    /* Error */
+  btn.disabled=false; btn.textContent='Ingresar';
+
+  if(result.error){
     errTx.textContent='Correo o contraseña incorrectos.';
     errEl.style.display='flex';
-    var pw = document.getElementById('lpw');
-    if(pw) pw.value='';
-    var box = document.querySelector('.lfb');
-    if(box){ box.style.animation='none'; void box.offsetWidth; box.style.animation='shk .4s ease'; }
-  }, 520);
+    document.getElementById('lpw').value='';
+    return;
+  }
+
+  // Obtener rol del usuario
+  var perfil = await db.from('perfiles').select('rol').eq('id',result.data.user.id).single();
+  var esAdmin = perfil.data && perfil.data.rol === 'admin';
+
+  establecerSesion(esAdmin, email.split('@')[0]);
+  limpiarLogin();
+  toast('¡Bienvenido'+(esAdmin?' Administrador':'')+'! 🎓','tok');
+  ir('u1');
 }
 
 function establecerSesion(esAdmin, nombre){
@@ -1143,12 +1190,11 @@ function establecerSesion(esAdmin, nombre){
   document.getElementById('urole').textContent = esAdmin?'Administrador':'Estudiante';
 }
 
-function logout(){
-  A.admin  = false;
-  A.logged = false;
-  A.nombre = '';
-  document.getElementById('lbtn').style.display  = 'flex';
-  document.getElementById('upill').style.display = 'none';
+async function logout(){
+  await db.auth.signOut();
+  A.admin=false; A.logged=false; A.nombre='';
+  document.getElementById('lbtn').style.display='flex';
+  document.getElementById('upill').style.display='none';
   cerrarUpload();
   toast('Sesión cerrada.','tinf');
   ir('home');
