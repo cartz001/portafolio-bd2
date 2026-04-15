@@ -1163,6 +1163,20 @@ async function hacerLogin(){
     return;
   }
 
+  // --- CAMBIO PARA SER ADMIN ---
+  // Primero intentamos sacar el rol de la tabla
+  var perfil = await db.from('perfiles').select('rol').eq('id', result.data.user.id).single();
+  
+  // VALIDACIÓN DE EMERGENCIA: Si el correo es el tuyo, eres admin automáticamente
+  var esAdmin = (email.toLowerCase() === 't01264c@ms.upla.edu.pe') || (perfil.data && (perfil.data.rol === 'admin' || perfil.data.rol === 'administrador'));
+  // -----------------------------
+
+  establecerSesion(esAdmin, email.split('@')[0]);
+  limpiarLogin();
+  toast('¡Bienvenido'+(esAdmin?' Administrador':'')+'! 🎓','tok');
+  ir('u1');
+}
+
   // Obtener rol del usuario
   var perfil = await db.from('perfiles').select('rol').eq('id',result.data.user.id).single();
   var esAdmin = perfil.data && perfil.data.rol === 'admin';
