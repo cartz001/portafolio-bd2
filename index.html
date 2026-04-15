@@ -1137,54 +1137,55 @@ var ADMIN_EMAIL = 'T01264C@ms.upla.edu.pe';
 var ADMIN_PASS  = 'sacrataf03';
 
 async function hacerLogin(){
-  var email = (document.getElementById('lem')||{}).value||'';
-  var pass  = (document.getElementById('lpw')||{}).value||'';
-  var errEl = document.getElementById('lerr');
-  var errTx = document.getElementById('lerrtxt');
-  errEl.style.display='none';
-  email = email.trim();
+  var email = (document.getElementById('lem')||{}).value||'';
+  var pass  = (document.getElementById('lpw')||{}).value||'';
+  var errEl = document.getElementById('lerr');
+  var errTx = document.getElementById('lerrtxt');
+  if(errEl) errEl.style.display='none';
+  email = email.trim();
 
-  if(!email||!pass){
-    errTx.textContent='Completa todos los campos.';
-    errEl.style.display='flex'; return;
-  }
+  if(!email || !pass){
+    if(errTx) errTx.textContent='Completa todos los campos.';
+    if(errEl) errEl.style.display='flex'; 
+    return;
+  }
 
-  var btn = document.getElementById('lbtn2');
-  btn.disabled=true; btn.textContent='Verificando…';
+  var btn = document.getElementById('lbtn2');
+  if(btn) { btn.disabled=true; btn.textContent='Verificando…'; }
 
-  var result = await db.auth.signInWithPassword({email:email, password:pass});
+  var result = await db.auth.signInWithPassword({email:email, password:pass});
 
-  btn.disabled=false; btn.textContent='Ingresar';
+  if(btn) { btn.disabled=false; btn.textContent='Ingresar'; }
 
-  if(result.error){
-    errTx.textContent='Correo o contraseña incorrectos.';
-    errEl.style.display='flex';
-    document.getElementById('lpw').value='';
-    return;
-  }
+  if(result.error){
+    if(errTx) errTx.textContent='Correo o contraseña incorrectos.';
+    if(errEl) errEl.style.display='flex';
+    if(document.getElementById('lpw')) document.getElementById('lpw').value='';
+    return;
+  }
 
-  // --- CAMBIO PARA SER ADMIN ---
-  // Primero intentamos sacar el rol de la tabla
-  var perfil = await db.from('perfiles').select('rol').eq('id', result.data.user.id).single();
-  
-  // VALIDACIÓN DE EMERGENCIA: Si el correo es el tuyo, eres admin automáticamente
-  var esAdmin = (email.toLowerCase() === 't01264c@ms.upla.edu.pe') || (perfil.data && (perfil.data.rol === 'admin' || perfil.data.rol === 'administrador'));
-  // -----------------------------
+  // --- LÓGICA DE ROL REFORZADA ---
+  var esAdmin = false;
+  
+  // 1. Prioridad: Tu correo de la UPLA (No depende de la DB)
+  if (email.toLowerCase() === 't01264c@ms.upla.edu.pe') {
+    esAdmin = true;
+  } else {
+    // 2. Otros usuarios: Buscar en la tabla 'perfiles'
+    try {
+      var { data: perfil } = await db.from('perfiles').select('rol').eq('id', result.data.user.id).single();
+      if (perfil && (perfil.rol === 'admin' || perfil.rol === 'administrador')) {
+        esAdmin = true;
+      }
+    } catch (e) {
+      console.log("Error de rol:", e);
+    }
+  }
 
-  establecerSesion(esAdmin, email.split('@')[0]);
-  limpiarLogin();
-  toast('¡Bienvenido'+(esAdmin?' Administrador':'')+'! 🎓','tok');
-  ir('u1');
-}
-
-  // Obtener rol del usuario
-  var perfil = await db.from('perfiles').select('rol').eq('id',result.data.user.id).single();
-  var esAdmin = perfil.data && perfil.data.rol === 'admin';
-
-  establecerSesion(esAdmin, email.split('@')[0]);
-  limpiarLogin();
-  toast('¡Bienvenido'+(esAdmin?' Administrador':'')+'! 🎓','tok');
-  ir('u1');
+  establecerSesion(esAdmin, email.split('@')[0]);
+  limpiarLogin();
+  toast('¡Bienvenido' + (esAdmin ? ' Administrador' : '') + '! 🎓', 'tok');
+  ir('u1');
 }
 
 function establecerSesion(esAdmin, nombre){
