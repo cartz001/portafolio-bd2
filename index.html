@@ -908,14 +908,7 @@ function toggleSemana(key){
   A.abiertos[key] = abierto;
 }
 
-function eliminarMat(key, id){
-  if(!A.mats[key]) return;
-  A.mats[key] = A.mats[key].filter(function(m){ return m.id!==id; });
-  guardarMats();
-  refrescarSemana(key);
-  actualizarBanner();
-  toast('Material eliminado.','inf');
-}
+// eliminarMat es async — definida más abajo con Supabase
 
 function refrescarSemana(key){
   /* Actualiza el contenido interno sin re-renderizar todo */
@@ -1043,44 +1036,58 @@ async function guardarArchivo(){
   titulo=titulo.trim(); desc=desc.trim();
   if(!f||!titulo){ toast('Necesitas un título y un archivo.','terr'); return; }
 
+  // Verificar que hay sesión activa
+  var sesion = await db.auth.getSession();
+  if(!sesion.data.session){
+    toast('Debes estar logueado para subir archivos.','terr'); return;
+  }
+
   var btn=document.getElementById('savebtn');
   btn.disabled=true; btn.textContent='⏳ Subiendo…';
 
-  // 1. Subir archivo a Supabase Storage
-  var ext      = f.name.split('.').pop();
-  var ruta     = A.unidad+'/semana'+A.semana+'/'+Date.now()+'_'+f.name.replace(/[^a-zA-Z0-9._-]/g,'_');
-  var upload   = await db.storage.from('materiales').upload(ruta, f);
+  try{
+    // 1. Nombre de archivo seguro y ruta organizada
+    var nombreSeguro = f.name.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zA-Z0-9._-]/g,'_');
+    var ruta = A.unidad+'/semana'+A.semana+'/'+Date.now()+'_'+nombreSeguro;
 
-  if(upload.error){
-    toast('Error al subir: '+upload.error.message,'terr');
-    btn.disabled=false; btn.textContent='✓ Guardar Material'; return;
+    // 2. Subir a Supabase Storage con upsert:true para evitar conflictos
+    var upload = await db.storage.from('materiales').upload(ruta, f, {upsert:true});
+
+    if(upload.error){
+      toast('Error al subir archivo: '+upload.error.message,'terr');
+      btn.disabled=false; btn.textContent='✓ Guardar Material'; return;
+    }
+
+    // 3. Obtener URL pública
+    var urlResult = db.storage.from('materiales').getPublicUrl(ruta);
+    var urlPublica = urlResult.data.publicUrl;
+
+    // 4. Guardar en tabla materiales
+    var insert = await db.from('materiales').insert({
+      unidad:         A.unidad,
+      semana:         A.semana,
+      titulo:         titulo,
+      descripcion:    desc || null,
+      nombre_archivo: f.name,
+      url_archivo:    urlPublica,
+      tamano_bytes:   f.size
+    });
+
+    if(insert.error){
+      toast('Error al guardar registro: '+insert.error.message,'terr');
+      btn.disabled=false; btn.textContent='✓ Guardar Material'; return;
+    }
+
+    // 5. Éxito — recargar semana
+    cerrarUpload();
+    await cargarSemana(A.unidad, A.semana);
+    actualizarBanner();
+    toast('"'+titulo+'" subido a Semana '+A.semana+' ✓','tok');
+
+  } catch(err){
+    toast('Error inesperado: '+err.message,'terr');
   }
 
-  // 2. Obtener URL pública del archivo
-  var urlResult = db.storage.from('materiales').getPublicUrl(ruta);
-  var urlPublica = urlResult.data.publicUrl;
-
-  // 3. Guardar registro en la tabla materiales
-  var insert = await db.from('materiales').insert({
-    unidad:         A.unidad,
-    semana:         A.semana,
-    titulo:         titulo,
-    descripcion:    desc || null,
-    nombre_archivo: f.name,
-    url_archivo:    urlPublica,
-    tamano_bytes:   f.size
-  });
-
-  if(insert.error){
-    toast('Error al registrar: '+insert.error.message,'terr');
-    btn.disabled=false; btn.textContent='✓ Guardar Material'; return;
-  }
-
-  // 4. Recargar la semana
-  cerrarUpload();
-  await cargarSemana(A.unidad, A.semana);
-  actualizarBanner();
-  toast('"'+titulo+'" subido a Semana '+A.semana+' ✓','tok');
   btn.disabled=false; btn.textContent='✓ Guardar Material';
 }
 async function cargarSemana(unidad, numSem){
@@ -1163,9 +1170,8 @@ async function hacerLogin(){
     return;
   }
 
-  // Obtener rol del usuario
-  var perfil = await db.from('perfiles').select('rol').eq('id',result.data.user.id).single();
-  var esAdmin = perfil.data && perfil.data.rol === 'admin';
+  // Validar admin directamente por email — sin depender de tabla perfiles
+  var esAdmin = (email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
 
   establecerSesion(esAdmin, email.split('@')[0]);
   limpiarLogin();
