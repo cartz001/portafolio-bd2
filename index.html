@@ -1141,78 +1141,64 @@ async function hacerLogin(){
   var pass  = (document.getElementById('lpw')||{}).value||'';
   var errEl = document.getElementById('lerr');
   var errTx = document.getElementById('lerrtxt');
-  if(errEl) errEl.style.display='none';
+  errEl.style.display='none';
   email = email.trim();
 
-  if(!email || !pass){
-    if(errTx) errTx.textContent='Completa todos los campos.';
-    if(errEl) errEl.style.display='flex'; 
-    return;
+  if(!email||!pass){
+    errTx.textContent='Completa todos los campos.';
+    errEl.style.display='flex'; return;
   }
 
   var btn = document.getElementById('lbtn2');
-  if(btn) { btn.disabled=true; btn.textContent='Verificando…'; }
+  btn.disabled=true; btn.textContent='Verificando…';
 
   var result = await db.auth.signInWithPassword({email:email, password:pass});
 
-  if(btn) { btn.disabled=false; btn.textContent='Ingresar'; }
+  btn.disabled=false; btn.textContent='Ingresar';
 
   if(result.error){
-    if(errTx) errTx.textContent='Correo o contraseña incorrectos.';
-    if(errEl) errEl.style.display='flex';
-    if(document.getElementById('lpw')) document.getElementById('lpw').value='';
+    errTx.textContent='Correo o contraseña incorrectos.';
+    errEl.style.display='flex';
+    document.getElementById('lpw').value='';
     return;
   }
 
-  // --- LÓGICA DE ROL REFORZADA ---
-  var esAdmin = false;
-  
-  // 1. Prioridad: Tu correo de la UPLA (No depende de la DB)
-  if (email.toLowerCase() === 't01264c@ms.upla.edu.pe') {
-    esAdmin = true;
-  } else {
-    // 2. Otros usuarios: Buscar en la tabla 'perfiles'
-    try {
-      var { data: perfil } = await db.from('perfiles').select('rol').eq('id', result.data.user.id).single();
-      if (perfil && (perfil.rol === 'admin' || perfil.rol === 'administrador')) {
-        esAdmin = true;
-      }
-    } catch (e) {
-      console.log("Error de rol:", e);
-    }
-  }
+  // Obtener rol del usuario
+  var perfil = await db.from('perfiles').select('rol').eq('id',result.data.user.id).single();
+  var esAdmin = perfil.data && perfil.data.rol === 'admin';
 
   establecerSesion(esAdmin, email.split('@')[0]);
   limpiarLogin();
-  toast('¡Bienvenido' + (esAdmin ? ' Administrador' : '') + '! 🎓', 'tok');
+  toast('¡Bienvenido'+(esAdmin?' Administrador':'')+'! 🎓','tok');
   ir('u1');
 }
 
 function establecerSesion(esAdmin, nombre){
-  A.admin  = esAdmin;
-  A.logged = true;
-  A.nombre = nombre;
-  document.getElementById('lbtn').style.display  = 'none';
-  document.getElementById('upill').style.display = 'flex';
-  var av = document.getElementById('uav');
-  av.textContent = nombre.charAt(0).toUpperCase();
-  av.style.background = esAdmin
-    ? 'linear-gradient(135deg,#1a237e,#3949ab)'
-    : 'linear-gradient(135deg,#00695c,#00897b)';
-  var n = nombre.length>13 ? nombre.slice(0,11)+'…' : nombre;
-  document.getElementById('uname').textContent = n;
-  document.getElementById('urole').textContent = esAdmin?'Administrador':'Estudiante';
+  A.admin  = esAdmin;
+  A.logged = true;
+  A.nombre = nombre;
+  document.getElementById('lbtn').style.display  = 'none';
+  document.getElementById('upill').style.display = 'flex';
+  var av = document.getElementById('uav');
+  av.textContent = nombre.charAt(0).toUpperCase();
+  av.style.background = esAdmin
+    ? 'linear-gradient(135deg,#1a237e,#3949ab)'
+    : 'linear-gradient(135deg,#00695c,#00897b)';
+  var n = nombre.length>13 ? nombre.slice(0,11)+'…' : nombre;
+  document.getElementById('uname').textContent = n;
+  document.getElementById('urole').textContent = esAdmin?'Administrador':'Estudiante';
 }
 
 async function logout(){
-  await db.auth.signOut();
-  A.admin=false; A.logged=false; A.nombre='';
-  document.getElementById('lbtn').style.display='flex';
-  document.getElementById('upill').style.display='none';
-  cerrarUpload();
-  toast('Sesión cerrada.','tinf');
-  ir('home');
+  await db.auth.signOut();
+  A.admin=false; A.logged=false; A.nombre='';
+  document.getElementById('lbtn').style.display='flex';
+  document.getElementById('upill').style.display='none';
+  cerrarUpload();
+  toast('Sesión cerrada.','tinf');
+  ir('home');
 }
+
 function limpiarLogin(){
   var em=document.getElementById('lem'), pw=document.getElementById('lpw');
   if(em) em.value=''; if(pw) pw.value='';
