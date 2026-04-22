@@ -275,6 +275,7 @@ body.light .wb-no{background:rgba(0,0,0,.05);color:var(--tx3)}
   background:rgba(0,230,118,.1);color:var(--g);border:1.5px solid rgba(0,230,118,.22);
   border-radius:7px;font-size:.73rem;font-weight:700;text-decoration:none;transition:all .15s;white-space:nowrap}
 .dlb:hover{background:var(--g);color:#0d1117}
+.dlb-dl{padding:.26rem .6rem}
 body.light .dlb{background:rgba(26,35,126,.07);color:var(--ub);border-color:rgba(26,35,126,.18)}
 body.light .dlb:hover{background:var(--ub);color:#fff}
 .delb{width:27px;height:27px;background:none;border:1.5px solid var(--bd);border-radius:7px;
@@ -393,6 +394,61 @@ body.light .tinf{background:#ede7f6;color:#512da8;border-color:#d1c4e9}
   .brand-t{display:none}
   .ui{display:none}
 }
+
+/* ── MODAL VISOR DE ARCHIVOS ── */
+#visor-overlay{
+  display:none;position:fixed;inset:0;z-index:2000;
+  background:rgba(0,0,0,.85);
+  align-items:center;justify-content:center;
+  padding:1rem;
+  animation:fadein .2s ease}
+#visor-overlay.open{display:flex}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+#visor-box{
+  background:var(--s1);
+  border:1.5px solid var(--bd2);
+  border-radius:var(--r16);
+  width:100%;max-width:920px;
+  height:90vh;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  box-shadow:0 20px 60px rgba(0,0,0,.7)}
+#visor-head{
+  display:flex;align-items:center;gap:.75rem;
+  padding:.75rem 1.1rem;
+  border-bottom:1px solid var(--bd);
+  background:var(--s2);flex-shrink:0}
+#visor-ico{font-size:1.4rem;flex-shrink:0}
+#visor-nombre{font-size:.9rem;font-weight:700;flex:1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#visor-tipo{font-size:.7rem;color:var(--tx3);
+  padding:.18rem .55rem;background:var(--s3);
+  border-radius:99px;flex-shrink:0}
+#visor-dl{display:flex;align-items:center;gap:4px;
+  padding:.32rem .85rem;
+  background:rgba(0,230,118,.12);color:var(--g);
+  border:1.5px solid rgba(0,230,118,.25);
+  border-radius:7px;font-size:.75rem;font-weight:700;
+  text-decoration:none;white-space:nowrap;flex-shrink:0;
+  transition:all .15s}
+#visor-dl:hover{background:var(--g);color:#0d1117}
+body.light #visor-dl{background:rgba(26,35,126,.08);color:var(--ub);border-color:rgba(26,35,126,.2)}
+body.light #visor-dl:hover{background:var(--ub);color:#fff}
+#visor-close{
+  width:30px;height:30px;background:var(--s3);
+  border:1.5px solid var(--bd2);border-radius:7px;
+  cursor:pointer;color:var(--tx2);font-size:.9rem;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all .15s}
+#visor-close:hover{background:rgba(255,82,82,.15);color:#ff5252}
+#visor-body{flex:1;overflow:hidden;position:relative;background:#1a1a2e}
+#visor-iframe{width:100%;height:100%;border:none;display:block}
+#visor-nopreview{
+  display:none;flex-direction:column;align-items:center;
+  justify-content:center;gap:1rem;height:100%;
+  color:var(--tx2);text-align:center;padding:2rem}
+#visor-nopreview .np-ico{font-size:4rem}
+#visor-nopreview p{font-size:.9rem;max-width:320px;line-height:1.6}
 </style>
 </head>
 <body>
@@ -639,6 +695,28 @@ body.light .tinf{background:#ede7f6;color:#512da8;border-color:#d1c4e9}
 </div>
 </div>
 
+
+<!-- ════ MODAL VISOR DE ARCHIVOS ════ -->
+<div id="visor-overlay" onclick="cerrarVisor(event)">
+  <div id="visor-box">
+    <div id="visor-head">
+      <span id="visor-ico">📄</span>
+      <span id="visor-nombre">archivo.pdf</span>
+      <span id="visor-tipo">PDF</span>
+      <a id="visor-dl" href="#" download target="_blank">⬇ Descargar</a>
+      <button id="visor-close" onclick="cerrarVisor(null)">✕</button>
+    </div>
+    <div id="visor-body">
+      <iframe id="visor-iframe" src="" title="Visor de archivo"></iframe>
+      <div id="visor-nopreview">
+        <div class="np-ico" id="np-ico">🗜</div>
+        <p>Este tipo de archivo no puede previsualizarse en el navegador.</p>
+        <a id="np-dl" href="#" download class="btn btnF" style="max-width:220px">⬇ Descargar archivo</a>
+      </div>
+    </div>
+  </div>
+</div>
+
 </main>
 
 <footer>
@@ -883,7 +961,8 @@ function construirContenido(key, items, numSemana){
             +'<span class="mm">'+esc(it.fname)+' &nbsp;·&nbsp; '+it.fsize+' &nbsp;·&nbsp; '+it.fecha+'</span>'
           +'</div>'
           +'<div class="macts">'
-            +'<a class="dlb" href="'+it.dataUrl+'" download="'+esc(it.fname)+'">⬇ Descargar</a>'
+            +'<button class="dlb" onclick="verArchivo(''+it.dataUrl+'',''+esc(it.fname)+'')">👁 Ver</button>'
+            +'<a class="dlb dlb-dl" href="'+it.dataUrl+'" download="'+esc(it.fname)+'" target="_blank" title="Descargar">⬇</a>'
             +delHtml
           +'</div>'
         +'</div>';
@@ -1311,6 +1390,70 @@ function genId(){
 /* ═══════════════════════════════════════════
    INICIO — ejecutar cuando el DOM está listo
 ═══════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════
+   VISOR DE ARCHIVOS — abre en modal inline
+═══════════════════════════════════════════ */
+function verArchivo(url, nombre){
+  var overlay  = document.getElementById('visor-overlay');
+  var iframe   = document.getElementById('visor-iframe');
+  var noPreview= document.getElementById('visor-nopreview');
+  var dlBtn    = document.getElementById('visor-dl');
+  var npDl     = document.getElementById('np-dl');
+  var nomEl    = document.getElementById('visor-nombre');
+  var icoEl    = document.getElementById('visor-ico');
+  var tipoEl   = document.getElementById('visor-tipo');
+  var npIco    = document.getElementById('np-ico');
+
+  var ext = nombre.split('.').pop().toLowerCase();
+
+  // Tipos que el navegador puede mostrar inline
+  var puedeVer = ['pdf','png','jpg','jpeg','gif','webp','svg','mp4','webm'].indexOf(ext) >= 0;
+
+  // Actualizar header del modal
+  nomEl.textContent = nombre;
+  icoEl.textContent = icoExt(nombre);
+  tipoEl.textContent = ext.toUpperCase();
+
+  // Botón descargar del modal
+  dlBtn.href     = url;
+  dlBtn.download = nombre;
+  npDl.href      = url;
+  npDl.download  = nombre;
+
+  if(puedeVer){
+    // Mostrar iframe
+    iframe.style.display   = 'block';
+    noPreview.style.display= 'none';
+    // Para PDF: añadir #toolbar=1 para mostrar controles del PDF
+    iframe.src = ext === 'pdf' ? url + '#toolbar=1&navpanes=0' : url;
+  } else {
+    // No se puede previsualizar — mostrar pantalla de descarga
+    iframe.style.display    = 'none';
+    iframe.src              = '';
+    noPreview.style.display = 'flex';
+    npIco.textContent       = icoExt(nombre);
+  }
+
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden'; // evitar scroll detrás
+}
+
+function cerrarVisor(e){
+  // Cerrar si se pulsó el overlay (fondo) o el botón ✕
+  if(e && e.target !== document.getElementById('visor-overlay')) return;
+  var overlay = document.getElementById('visor-overlay');
+  var iframe  = document.getElementById('visor-iframe');
+  overlay.classList.remove('open');
+  iframe.src = ''; // liberar recurso
+  document.body.style.overflow = '';
+}
+
+// Cerrar con tecla Escape
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape') cerrarVisor(null);
+});
+
 window.addEventListener('DOMContentLoaded', function(){
   ir('home');
 });
